@@ -1,0 +1,83 @@
+GroovyShell shell = new GroovyShell()
+
+def pipelineValuesFile = readFileFromWorkspace("${WORKSPACE}/jenkins_aws/job-description/PipelineValues.groovy")
+
+def pipelineValues = shell.parse(pipelineValuesFile)
+
+def allCEApplications = pipelineValues.getAllCEApplications()
+
+ 
+
+def mainFolder="COMMERCIAL-ENABLERS/EPC"
+
+folder(mainFolder) {
+
+    displayName('EPC')
+
+    description("Build jobs for CE EPC applications are available in this folder. \nJobs in this folder will perform application build, sonar code coverage scan, docker image build and deploy into various stages.")
+
+}
+
+ 
+
+allCEApplications.each{
+
+    def appName=it.key
+
+    def appDetails=it.value
+
+    folder("${mainFolder}/${appName}"){
+
+        displayName("${appName}")
+
+        pipelineJob("${mainFolder}/${appName}/build") {
+
+            parameters {
+
+                stringParam('GITREF', '', 'Reference to source code repository. e.g. commitid, branchname')
+
+                choiceParam('DEPLOY_AFTER_BUILD', ['NO', 'YES'], "Do you want to deploy after build into dev env?")
+
+                stringParam('EMAILS', "${appDetails["emailRecipients"]}", 'Mail IDs to be notified')
+
+            }
+
+            definition {
+
+                cpsScm {
+
+                    scm {
+
+                        git {
+
+                            remote {
+
+                                credentials("git-token-credentials")
+
+                                github("itmp-agcs/${appDetails["repo"]}", "https", "github.developer.allianz.io")
+
+                            }
+
+                            branch("\${GITREF}")
+
+                            extensions {
+
+                                cloneOptions { shallow(true) }
+
+                            }
+
+                        }
+
+                    }
+
+                    scriptPath('BE/cicd/build.Jenkinsfile')
+
+                }
+
+            }
+
+        }
+
+    }    
+
+}
